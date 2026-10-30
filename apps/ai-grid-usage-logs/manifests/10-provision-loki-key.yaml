@@ -67,9 +67,20 @@ metadata:
   generateName: provision-loki-s3-secret-
   namespace: ai-grid-o11y
   annotations:
-    # PostSync, so the OBC exists before this runs, and generateName so each
-    # sync does not collide with a completed Job of the same name.
-    argocd.argoproj.io/hook: PostSync
+    # A Sync hook in wave 1, NOT PostSync. PostSync only runs after the whole
+    # sync succeeds, and this app's sync cannot succeed until the spoke is
+    # ready: Argo CD has a health check for ACM Policy that maps NonCompliant
+    # to Degraded, and the policy stays NonCompliant until RHOAI exists on the
+    # spoke to receive the credential. PostSync therefore never ran, the Secret
+    # was never created, and the LokiStack sat on MissingObjectStorageSecret
+    # indefinitely -- measured at 20 minutes of no movement.
+    #
+    # As a wave-1 Sync hook it runs after the chart's objects (wave 0, so the
+    # OBC exists) and before the Policy (pushed to wave 5 in values.yaml), so
+    # the store gets its storage regardless of what the policy reports.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "1"
+    # generateName, so each sync does not collide with a completed Job.
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   backoffLimit: 4
