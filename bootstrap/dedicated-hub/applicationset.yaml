@@ -36,6 +36,10 @@ spec:
           # MCG-standalone, so the only class it provides is the OBC provisioner and
           # block storage still comes from the cloud.
           - path: apps/odf/application.yaml
+          # ACM observability, whose Thanos bucket is why ODF is here. The manifests
+          # exist under apps/acm/manifests/observability but the dedicated-hub patch
+          # narrows the acm app to core/, so nothing referenced them.
+          - path: apps/acm-observability/application.yaml
           # The hub's MaaS usage-log store, and the ACM policy that hands each site
           # the writer token.
           - path: apps/ai-grid-usage-logs/application.yaml
