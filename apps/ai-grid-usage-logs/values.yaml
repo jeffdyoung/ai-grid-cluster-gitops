@@ -87,10 +87,17 @@ spokePolicy:
   deliverCredential: true
   deliverConfiguration: false
 
+  # apps/ai-grid-policies already owns this namespace. Creating it here as well
+  # makes two Argo Applications claim one object, which Argo reports as a
+  # SharedResourceWarning and leaves both of them OutOfSync.
+  createNamespace: false
+
   placement:
     # This fleet binds `global`, not the chart's `default`.
     clusterSet: global
-    createClusterSetBinding: true
+    # Same reason as createNamespace above: apps/ai-grid-policies already binds
+    # global into this namespace.
+    createClusterSetBinding: false
     # Left at the chart default, ai-grid.redhat.com/maas=true: a site forwards
     # usage logs only once labelled, which is deliberately separate from
     # ai-grid/role. Overriding matchLabels here would ADD to the default rather

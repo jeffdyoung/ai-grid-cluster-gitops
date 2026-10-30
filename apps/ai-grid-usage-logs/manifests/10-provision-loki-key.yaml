@@ -1,0 +1,111 @@
+# Translate the ObjectBucketClaim into the S3-shaped Secret the LokiStack reads.
+#
+# The chart renders the OBC but cannot do this step: the bucket name and keys
+# exist only once the provisioner has bound the claim, and the chart's own hook
+# is blocked on this repository having no default CLI image. Without this the
+# LokiStack sits Degraded on MissingObjectStorageSecret indefinitely.
+#
+# The same shape apps/acm/manifests/observability/observability-bridge-job.yaml
+# uses for Thanos, and apps/ai-grid-o11y used for this store by hand.
+#
+# --from-literal with command substitution is deliberate rather than --from-file:
+# substitution strips the trailing newline that --from-file preserves, and a
+# credential with a trailing newline is a hard thing to diagnose later.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: provision-loki-key
+  namespace: ai-grid-o11y
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: provision-loki-key
+  namespace: ai-grid-o11y
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["usage-logs-bucket"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["usage-logs-bucket"]
+    verbs: ["get"]
+  # resourceNames cannot restrict `create`: the name travels in the request body,
+  # not the path. Creation is therefore scoped to this namespace only.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "update", "patch", "get"]
+  - apiGroups: ["objectbucket.io"]
+    resources: ["objectbucketclaims"]
+    resourceNames: ["usage-logs-bucket"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: provision-loki-key
+  namespace: ai-grid-o11y
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: provision-loki-key
+subjects:
+  - kind: ServiceAccount
+    name: provision-loki-key
+    namespace: ai-grid-o11y
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: provision-loki-s3-secret-
+  namespace: ai-grid-o11y
+  annotations:
+    # PostSync, so the OBC exists before this runs, and generateName so each
+    # sync does not collide with a completed Job of the same name.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      serviceAccountName: provision-loki-key
+      restartPolicy: Never
+      containers:
+        - name: create-secret
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -Eeuo pipefail
+              O11Y_NS=ai-grid-o11y
+              LOKI_NAME=usage-logs
+
+              # The claim binds asynchronously, so even a PostSync hook can
+              # arrive before the provisioner has finished.
+              oc wait --for=jsonpath='{.status.phase}'=Bound \
+                "objectbucketclaim/${LOKI_NAME}-bucket" -n "$O11Y_NS" --timeout=10m
+
+              BUCKET=$(oc get cm "${LOKI_NAME}-bucket" -n "$O11Y_NS" -o jsonpath='{.data.BUCKET_NAME}')
+              HOST=$(oc get cm "${LOKI_NAME}-bucket" -n "$O11Y_NS" -o jsonpath='{.data.BUCKET_HOST}')
+              PORT=$(oc get cm "${LOKI_NAME}-bucket" -n "$O11Y_NS" -o jsonpath='{.data.BUCKET_PORT}')
+              AK=$(oc get secret "${LOKI_NAME}-bucket" -n "$O11Y_NS" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+              SK=$(oc get secret "${LOKI_NAME}-bucket" -n "$O11Y_NS" -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+              [ -n "$BUCKET" ] && [ -n "$AK" ] && [ -n "$SK" ] || {
+                echo "the OBC is Bound but its credentials are empty" >&2; exit 1; }
+
+              # Endpoint read from the claim rather than hardcoded, so this
+              # follows the provisioner instead of assuming MCG's service name.
+              oc create secret generic "${LOKI_NAME}-object-storage" -n "$O11Y_NS" \
+                --from-literal=bucketnames="$BUCKET" \
+                --from-literal=endpoint="https://${HOST}:${PORT}" \
+                --from-literal=access_key_id="$AK" \
+                --from-literal=access_key_secret="$SK" \
+                --dry-run=client -o yaml | oc apply -f -
+              echo "rendered ${LOKI_NAME}-object-storage for bucket ${BUCKET} at ${HOST}:${PORT}"
