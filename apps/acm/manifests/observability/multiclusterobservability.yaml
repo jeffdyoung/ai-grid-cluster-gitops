@@ -16,7 +16,13 @@ spec:
   advanced:
     retentionConfig:
       retentionResolutionRaw: 7d
-      retentionResolution5m: 7d
+      # Must exceed 10 days, which is the block size after which Thanos
+      # downsamples 5m to 1h. At 7d the compactor refuses to start at all:
+      # "5m resolution retention must be higher than the minimum block size
+      # after which 1h resolution downsampling will occur (10 days)", and
+      # observability-thanos-compact-0 sits in CrashLoopBackOff. ACM's own
+      # default is 14d. Observed on a 2026-10-29 hub.
+      retentionResolution5m: 14d
       retentionResolution1h: 14d
     # Default sts size was 6, making node drain challenging
     receive:

@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # ACM multicluster observability, storing metrics in an ODF bucket (apps/odf).
+  #
+  # The manifests live in apps/acm/manifests/observability but no Application
+  # referenced them: apps/acm/manifests/kustomization.yaml aggregates core,
+  # observability and submariner, and the dedicated-hub profile rewrites that
+  # app's path to apps/acm/manifests/core alone. The reference deployment
+  # (ai-grid-cloud/ai-grid-tenant-demo) carries this as an optional app in its
+  # deployment/apps layer, which this repository does not have -- so on a
+  # dedicated hub there was no way to turn observability on at all.
+  #
+  # Only observability, not the whole manifests tree: submariner needs a site,
+  # which a dedicated hub is not.
+  name: acm-observability
+  namespace: openshift-gitops
+  annotations:
+    # After ACM core, which installs the operator and the MultiClusterHub this
+    # MultiClusterObservability depends on.
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
+    targetRevision: HEAD
+    path: apps/acm/manifests/observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: open-cluster-management
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      refresh: true
+      # The OBC binds asynchronously and the bridge Job waits on it, so give
+      # this room rather than failing the app while MCG provisions.
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
