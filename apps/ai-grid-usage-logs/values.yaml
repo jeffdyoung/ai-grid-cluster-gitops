@@ -1,0 +1,102 @@
+# Hub store for AI Grid MaaS usage logs: a LokiStack the sites forward to, its
+# object storage, the ingest identities, and the ACM policy that hands each site
+# the writer token.
+#
+# Values for charts/rhai-on-openshift-chart/charts/ai-grid-o11y-hub, consumed by
+# the subchart directly rather than through the parent chart. Un-nested for that
+# reason, and `enabled` is set here because the parent would otherwise gate the
+# subchart through `condition:` in its Chart.yaml.
+enabled: true
+
+global:
+  # Argo CD's repo-server renders without cluster access, so the chart's
+  # lookup-based CRD gates always see "absent" there and would drop the store's
+  # CRs entirely. Argo retries the apply until the Loki operator's CRDs exist.
+  skipCrdCheck: true
+
+lokiStack:
+  enabled: true
+  name: usage-logs
+  # 1x.demo, not the chart's 1x.extra-small default: extra-small does not
+  # schedule on a hub this size. It has one ingester and replication factor 1,
+  # so no redundancy -- a production hub must choose a larger size.
+  size: 1x.demo
+  storageClassName: gp3-csi
+  schemas:
+    - version: v13
+      effectiveDate: "2026-10-01"
+  limits:
+    global:
+      # Loki keeps everything forever without this.
+      retention:
+        days: 30
+      otlp:
+        streamLabels:
+          resourceAttributes:
+            # Promoted to index labels, so these are usable inside a `{...}`
+            # stream selector. Everything else arrives as structured metadata:
+            # queryable after a `|` filter stage, but a selector on it returns
+            # zero rows with NO error.
+            #
+            # Named as they arrive on the wire. Loki replaces dots with
+            # underscores when it forms the label, so `service.name` becomes the
+            # `service_name` label that MaaS's usage dashboards select on.
+            #
+            # service.name must be listed even though Loki promotes it by
+            # default: setting streamLabels at all renders
+            # `default_resource_attributes_as_index_labels: []`, which discards
+            # Loki's built-in promotions.
+            - name: cluster_name
+            - name: cluster_id
+            - name: service.name
+            # The three MaaS's dashboards put in the selector rather than a
+            # filter stage. Without them every panel reads zero.
+            - name: model
+            - name: subscription
+            - name: response_type
+            - name: kubernetes_namespace_name
+
+objectStorage:
+  secretName: usage-logs-object-storage
+  # ODF's Multicloud Object Gateway, the same storage ACM observability's Thanos
+  # bucket uses. apps/odf installs it; its StorageCluster is MCG-standalone, so
+  # the only class it provides is this OBC provisioner and block storage still
+  # comes from the cloud (gp3-csi above).
+  obc:
+    create: true
+    storageClassName: openshift-storage.noobaa.io
+  # The MCG endpoint is an in-cluster Service, so the stack needs the service CA
+  # to trust it.
+  serviceCA:
+    enabled: true
+
+ingest:
+  writer:
+    create: true
+  # A read-only identity, for dashboards and any billing job.
+  reader:
+    create: true
+
+spokePolicy:
+  enabled: true
+
+  # Deliver the token, not the configuration. Argo CD renders each site's
+  # DSCInitialization from apps/rhoai/values.yaml, with the per-site attributes
+  # supplied by the rhoai ApplicationSet. Patching the same object from here
+  # would leave Argo's selfHeal and this policy as two writers on one DSCI.
+  deliverCredential: true
+  deliverConfiguration: false
+
+  placement:
+    # This fleet binds `global`, not the chart's `default`.
+    clusterSet: global
+    createClusterSetBinding: true
+    # Left at the chart default, ai-grid.redhat.com/maas=true: a site forwards
+    # usage logs only once labelled, which is deliberately separate from
+    # ai-grid/role. Overriding matchLabels here would ADD to the default rather
+    # than replace it, and the Placement would then match nothing.
+    excludeLocalCluster: true
+
+  spoke:
+    monitoringNamespace: redhat-ods-monitoring
+    credentialSecretName: hub-usage-logs-auth
