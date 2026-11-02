@@ -30,8 +30,13 @@ spec:
     # DSCInitialization and a DataScienceCluster, which would install RHOAI
     # configuration on the hub. Targeting the subchart renders only the store.
     # Its values are un-nested for the same reason.
-    - repoURL: https://github.com/opendatahub-io/odh-gitops.git
-      targetRevision: main
+    #
+    # Pinned to the fork's branch until the templated-endpoint change lands
+    # upstream: spokePolicy.endpoint accepting an ACM hub template is what lets
+    # this fleet discover its own ingest Route instead of hard-coding a host.
+    # Revert both lines to opendatahub-io/odh-gitops@main once it is merged.
+    - repoURL: https://github.com/jeffdyoung/odh-gitops.git
+      targetRevision: ai-grid-o11y-templated-endpoint
       path: charts/rhai-on-openshift-chart/charts/ai-grid-o11y-hub
       helm:
         releaseName: ai-grid-usage-logs
