@@ -32,6 +32,11 @@ operator:
 # OperatorGroup (named after the namespace), which conflicts with the chart's
 # (named after the package) and blocks CSV installs/upgrades. Let RHACM own
 # COO on this cluster until the OG naming is standardized in odh-gitops.
+#
+# This false applies to the HUB only. RHACM installs COO on the hub but not on
+# a managed spoke, where RHOAI's Monitoring service then reports
+# PreconditionsFailed and creates no collector. apps/rhoai/hub/01-applicationset.yaml
+# overrides this per cluster so the chart owns COO on every spoke.
 dependencies:
   rhcl:
     olm:
