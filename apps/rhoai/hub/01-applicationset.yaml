@@ -127,6 +127,16 @@ spec:
           jsonPointers:
             - /data
             - /metadata/annotations
+        # apps/ai-grid-usage-logs delivers spec.monitoring.usageLogs through an
+        # ACM Policy, because the ingest endpoint is the hub's Route host and is
+        # not knowable at render time. Without this, Argo's selfHeal and that
+        # policy fight over one object every cycle. Argo still owns the rest of
+        # spec.monitoring -- metrics, traces and log forwarding.
+        - group: dscinitialization.opendatahub.io
+          kind: DSCInitialization
+          name: default-dsci
+          jsonPointers:
+            - /spec/monitoring/usageLogs
         - group: ""
           kind: Service
           name: grid-provider-gateway
