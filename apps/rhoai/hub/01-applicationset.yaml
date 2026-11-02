@@ -81,6 +81,16 @@ spec:
               # cluster carries ai-grid/platform-namespaces=true (set before upgrading).
               - name: dependencies.loki.olm.createNamespace
                 value: '{{ if eq (index .metadata.labels "ai-grid/platform-namespaces") "true" }}false{{ else }}true{{ end }}'
+              # RHOAIENG-99507: on the hub, RHACM's multicluster-observability-addon
+              # installs Cluster Observability Operator with its own OperatorGroup, so
+              # apps/rhoai/values.yaml leaves dependencies.clusterObservability off to
+              # avoid a conflicting OperatorGroup. That addon does not install COO on a
+              # managed spoke -- it ships only the prom-agent collectors -- so without
+              # this the spoke has no COO, RHOAI's Monitoring service stays
+              # PreconditionsFailed, no collector is created and usage logs never
+              # forward. Let the chart own COO on spokes, and RHACM own it on the hub.
+              - name: dependencies.clusterObservability.enabled
+                value: '{{ ne (index .metadata.labels "local-cluster") "true" | toString }}'
         # MaaS sites (role ingress or combined, the hub included) get the Authorino
         # trust patch; an inference site runs no MaaS and renders nothing.
         - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
