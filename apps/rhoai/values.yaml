@@ -18,6 +18,25 @@ operator:
       channel: stable-3.6
       # ACM owns this Red Hat managed Namespace; OSD rejects Argo writes to it.
       createNamespace: false
+      config:
+        env:
+          # The 3.6 nightly references registry.redhat.io/rhaii digests that are
+          # not on the CDN -- all six (vllm-cuda, -cpu, -cpu-pz, -rocm, -gaudi and
+          # model-opt-cuda) return `manifest unknown`. Unlike the rhoai operands
+          # there is no reachable mirror: `rosa create image-mirror` to
+          # quay.io/rhaii resolves, then fails `unauthorized` with the same
+          # credential that works for quay.io/rhoai. Pin the published RHAIIS
+          # 3.5.2 CPU runtime (tag 3.5.2, release 1791473481) until the nightly's
+          # own digests publish. Only the CPU runtime is pinned: this profile
+          # serves facebook-opt-125m on vllm-cpu, so the accelerator variants are
+          # never pulled. All three keys carry one digest upstream, so all three
+          # are set rather than guessing which the template consumes.
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE
+            value: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE
+            value: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE
+            value: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1
 dependencies:
   opentelemetry:
     olm:
