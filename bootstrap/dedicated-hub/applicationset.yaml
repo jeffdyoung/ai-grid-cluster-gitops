@@ -32,6 +32,13 @@ spec:
           - path: apps/argo-registration/application.yaml
           - path: apps/rhoai/application.yaml
           - path: apps/rhoai-prerequisites/application.yaml
+          # ODF, for the usage-log store's object storage. Its StorageCluster is
+          # MCG-standalone, so the only class it provides is the OBC provisioner and
+          # block storage still comes from the cloud.
+          - path: apps/odf/application.yaml
+          # The hub's MaaS usage-log store, and the ACM policy that hands each site
+          # the writer token.
+          - path: apps/ai-grid-usage-logs/application.yaml
   template:
     metadata:
       name: '{{.metadata.name}}'
