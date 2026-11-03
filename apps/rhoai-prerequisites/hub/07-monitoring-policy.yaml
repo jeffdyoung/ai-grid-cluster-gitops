@@ -1,0 +1,96 @@
+# Monitoring on every site: user-workload monitoring on (the grid, MaaS, EPP and MetalLB monitors have no
+# scraper without it) and the Cluster Observability Operator, which RHOAI's MonitoringStack needs. Both
+# adopt what exists: the monitoring ConfigMap keeps its other keys, and an installed operator is left to
+# its owner. Capacity (retention, volumes) is a separate profile.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: rhoai-monitoring
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: rhoai-cluster-monitoring
+        spec:
+          remediationAction: enforce
+          severity: medium
+          pruneObjectBehavior: None
+          object-templates-raw: |
+            {{- /* config.yaml is parsed, enableUserWorkload set, everything else kept; malformed content fails the render. */ -}}
+            {{- $cm := lookup "v1" "ConfigMap" "openshift-monitoring" "cluster-monitoring-config" }}
+            {{- $text := "" }}
+            {{- if $cm.data }}{{ $text = index $cm.data "config.yaml" | default "" }}{{ end }}
+            {{- $cfg := dict }}
+            {{- if trim $text }}{{ $cfg = fromYAML $text }}{{ end }}
+            {{- if not (kindIs "map" $cfg) }}{{ fail (printf "cluster-monitoring-config config.yaml is not a mapping (%s)" (kindOf $cfg)) }}{{ end }}
+            {{- if hasKey $cfg "Error" }}{{ fail (printf "cluster-monitoring-config config.yaml does not parse: %s" (index $cfg "Error")) }}{{ end }}
+            {{- $_ := set $cfg "enableUserWorkload" true }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: cluster-monitoring-config
+                  namespace: openshift-monitoring
+                data:
+                  config.yaml: {{ toYAML $cfg | toJson }}
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: rhoai-cluster-observability-operator
+        spec:
+          remediationAction: enforce
+          severity: medium
+          pruneObjectBehavior: None
+          object-templates-raw: |
+            {{- /* An operator installed by anyone else (any namespace, any channel) is adopted as is. */ -}}
+            {{- $installed := false }}
+            {{- range (lookup "operators.coreos.com/v1alpha1" "Subscription" "" "").items }}
+            {{- if eq .spec.name "cluster-observability-operator" }}{{ $installed = true }}{{ end }}
+            {{- end }}
+            {{- if not $installed }}
+            {{- $ns := "openshift-cluster-observability-operator" }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: {{ $ns }}
+            {{- /* The operator supports AllNamespaces only: an existing group must be a single all-namespaces one. */ -}}
+            {{- $groups := (lookup "operators.coreos.com/v1" "OperatorGroup" $ns "").items }}
+            {{- if gt (len $groups) 1 }}{{ fail (printf "namespace %s has %d OperatorGroups; the operator needs exactly one" $ns (len $groups)) }}{{ end }}
+            {{- range $groups }}
+            {{- if or .spec.targetNamespaces .spec.selector }}{{ fail (printf "OperatorGroup %s/%s targets namespaces; the operator needs an all-namespaces group" $ns .metadata.name) }}{{ end }}
+            {{- end }}
+            {{- if not $groups }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: {{ $ns }}
+                  namespace: {{ $ns }}
+                spec: {}
+            {{- end }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: cluster-observability-operator
+                  namespace: {{ $ns }}
+                spec:
+                  channel: stable
+                  installPlanApproval: Automatic
+                  name: cluster-observability-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+            {{- end }}

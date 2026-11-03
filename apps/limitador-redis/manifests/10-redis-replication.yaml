@@ -35,6 +35,19 @@ spec:
     dynamicConfig:
       - "maxmemory 6gb"
       - "maxmemory-policy noeviction"
+  # Exporter sidecar (port 9121): latency, clients, memory, evictions, keyspace of the shared rate-limit
+  # store; scraped by user-workload monitoring (30-redis-exporter-podmonitor.yaml). Upstream image of the
+  # operator's own exporter, pinned by digest.
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter@sha256:a63d2b6e946f8b82467ec5f853c24ab994b7cab5eacc3c3cbaa50e49bd27f235 # v1.44.0
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
   kubernetesConfig:
     image: registry.redhat.io/rhel9/redis-7@sha256:8e0c52a2f304473c1f62d1112e116e0e8d541ed9cbeea86f6ece3318146be105
     imagePullPolicy: IfNotPresent

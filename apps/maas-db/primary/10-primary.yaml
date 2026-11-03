@@ -30,3 +30,6 @@ spec:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: preferred
+  # PodMonitor for user-workload monitoring: replication lag, connections, transactions, WAL (cnpg_*).
+  monitoring:
+    enablePodMonitor: true

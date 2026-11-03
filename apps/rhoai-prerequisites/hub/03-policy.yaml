@@ -151,6 +151,13 @@ spec:
                             matchLabels:
                               app.kubernetes.io/component: opentelemetry-collector
                               app.kubernetes.io/instance: redhat-ods-monitoring.data-science-collector
+                        # The cluster's user-workload Prometheus scrapes the same monitors for the hub's federation.
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: openshift-user-workload-monitoring
+                          podSelector:
+                            matchLabels:
+                              app.kubernetes.io/name: prometheus
     # The grid gateway dials each local model on the serving gateway's publisher path
     # as grid-model-client. The serving gateway's AuthPolicy authorizes that path with a
     # SubjectAccessReview for post on serving.opendatahub.io models. The pinned model

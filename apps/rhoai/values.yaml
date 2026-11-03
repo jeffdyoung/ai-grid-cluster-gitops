@@ -83,6 +83,21 @@ components:
         infrastructure:
           annotations:
             service.beta.openshift.io/serving-cert-secret-name: openshift-ai-inference-service-tls
+            # Envoy statistics Istio's default matcher drops (ext_proc, ext_authz, downstream and upstream counters, wasm).
+            proxy.istio.io/config: |
+                  proxyStatsMatcher:
+                    inclusionRegexps:
+                      - ".*ext_proc.*"
+                      - ".*ext_authz.*"
+                      - ".*ratelimit.*"
+                      - ".*wasm.*"
+                      - "http\\..*\\.downstream_rq_.*"
+                      - "http\\..*\\.downstream_cx_.*"
+                      - "listener\\..*\\.downstream_cx_.*"
+                      - "cluster\\..*\\.upstream_(rq|cx)_.*"
+                      - "server\\..*"
+                      - "overload\\..*"
+                      - "cluster\\..*\\.outlier_detection\\..*"
         listeners:
           - name: http
             port: 80
@@ -118,6 +133,23 @@ components:
     modelsAsAService:
       gateway:
         spec:
+          infrastructure:
+            annotations:
+              # Same Envoy statistics for the MaaS gateway (Kuadrant wasm shim and Limitador included).
+              proxy.istio.io/config: |
+                    proxyStatsMatcher:
+                      inclusionRegexps:
+                        - ".*ext_proc.*"
+                        - ".*ext_authz.*"
+                        - ".*ratelimit.*"
+                        - ".*wasm.*"
+                        - "http\\..*\\.downstream_rq_.*"
+                        - "http\\..*\\.downstream_cx_.*"
+                        - "listener\\..*\\.downstream_cx_.*"
+                        - "cluster\\..*\\.upstream_(rq|cx)_.*"
+                        - "server\\..*"
+                        - "overload\\..*"
+                        - "cluster\\..*\\.outlier_detection\\..*"
           listeners:
             - name: http
               port: 80

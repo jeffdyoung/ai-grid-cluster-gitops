@@ -1,0 +1,83 @@
+# Registers the AI Grid ScrapeConfigs with the multicluster observability addon: ACM copies a custom
+# ScrapeConfig to the managed clusters only when it is listed under the addon's placement configs (the
+# component label then picks the platform or user-workload agent). The entry is added to the addon's own
+# placement, read from the live object; musthave keeps the operator's entries. Removing a ScrapeConfig from
+# Git does not remove its entry: see apps/acm/manifests/observability/README.md, withdrawal.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: rhoai-hub
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  clusterSets:
+    - global
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            local-cluster: "true"
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: rhoai-observability-addon
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: rhoai-observability-addon-scrapeconfigs
+        spec:
+          remediationAction: enforce
+          severity: medium
+          pruneObjectBehavior: None
+          object-templates-raw: |
+            {{- $addon := lookup "addon.open-cluster-management.io/v1alpha1" "ClusterManagementAddOn" "" "multicluster-observability-addon" }}
+            {{- if not $addon.spec }}{{ fail "waiting for the multicluster-observability-addon ClusterManagementAddOn" }}{{ end }}
+            {{- $placements := dig "installStrategy" "placements" (list) $addon.spec }}
+            {{- if ne (len $placements) 1 }}{{ fail (printf "the addon has %d placements; exactly one is expected" (len $placements)) }}{{ end }}
+            {{- $pl := index $placements 0 }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: addon.open-cluster-management.io/v1alpha1
+                kind: ClusterManagementAddOn
+                metadata:
+                  name: multicluster-observability-addon
+                spec:
+                  installStrategy:
+                    placements:
+                      - name: {{ $pl.name | toJson }}
+                        namespace: {{ $pl.namespace | toJson }}
+                        configs:
+                          - group: monitoring.rhobs
+                            resource: scrapeconfigs
+                            namespace: open-cluster-management-observability
+                            name: ai-grid-platform-metrics
+                          - group: monitoring.rhobs
+                            resource: scrapeconfigs
+                            namespace: open-cluster-management-observability
+                            name: ai-grid-user-workload-metrics
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: rhoai-observability-addon
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: rhoai-hub
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: rhoai-observability-addon

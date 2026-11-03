@@ -1,0 +1,147 @@
+# Inference-only sites: the serving gateway's full Envoy statistics and Authorino's metrics. Where MaaS
+# runs, Kuadrant's istio-pod-monitor and kuadrant-authorino-monitor provide them; an inference site has
+# only RHOAI's openshift-ai-inference-metrics PodMonitor, which keeps the Istio request families alone.
+# The ACM platform job drops RHOAI's duplicate copies of those families centrally.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: rhoai-inference-only
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  clusterSets:
+    - global
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            ai-grid/enabled: "true"
+          matchExpressions:
+            - key: ai-grid/role
+              operator: In
+              values: [inference]
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: rhoai-gateway-envoy-metrics
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: rhoai-gateway-envoy-metrics
+        spec:
+          remediationAction: enforce
+          severity: medium
+          # Removed from a site that leaves the inference-only role (Kuadrant's monitors take over).
+          pruneObjectBehavior: DeleteAll
+          object-templates:
+            # mustonlyhave: this object is entirely ours, and a field dropped from the template (such as a
+            # metricRelabelings rule) must leave the live object too, which musthave would never do.
+            - complianceType: mustonlyhave
+              objectDefinition:
+                apiVersion: monitoring.coreos.com/v1
+                kind: PodMonitor
+                metadata:
+                  name: ai-grid-gateway-envoy-stats
+                  namespace: openshift-ingress
+                  labels:
+                    app.kubernetes.io/part-of: ai-grid
+                spec:
+                  # Gateway pods only (the gateway controller labels them); nothing opted out.
+                  selector:
+                    matchExpressions:
+                      - key: gateway.networking.k8s.io/gateway-name
+                        operator: Exists
+                      - key: istio-prometheus-ignore
+                        operator: DoesNotExist
+                  podMetricsEndpoints:
+                    - interval: 30s
+                      path: /stats/prometheus
+                      relabelings:
+                        - action: keep
+                          sourceLabels: [__meta_kubernetes_pod_container_name]
+                          regex: istio-proxy
+                        - action: keep
+                          sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                          regex: 'true'
+                        # Scrape the merged metrics port named in the pod's prometheus.io/port annotation.
+                        - action: replace
+                          sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+                          regex: '(\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'
+                          replacement: '[$2]:$1'
+                          targetLabel: __address__
+                        - action: replace
+                          sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+                          regex: '(\d+);((([0-9]+?)(\.|$)){4})'
+                          replacement: '$2:$1'
+                          targetLabel: __address__
+                        - action: replace
+                          sourceLabels: [__meta_kubernetes_pod_label_gateway_networking_k8s_io_gateway_name]
+                          targetLabel: gateway_name
+                        - action: replace
+                          sourceLabels: [__meta_kubernetes_namespace]
+                          targetLabel: namespace
+                        - action: replace
+                          sourceLabels: [__meta_kubernetes_pod_name]
+                          targetLabel: pod
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: rhoai-authorino-metrics
+        spec:
+          remediationAction: enforce
+          severity: medium
+          # Removed from a site that leaves the inference-only role (Kuadrant's monitors take over).
+          pruneObjectBehavior: DeleteAll
+          object-templates:
+            # Authorino performs the token review on every provider hop into the serving gateway; Kuadrant's
+            # own kuadrant-authorino-monitor exists only where MaaS runs. Same selector and endpoints as that
+            # object, under a name of its own, on inference-only sites.
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.coreos.com/v1
+                kind: ServiceMonitor
+                metadata:
+                  name: ai-grid-authorino-metrics
+                  namespace: kuadrant-system
+                  labels:
+                    app.kubernetes.io/part-of: ai-grid
+                spec:
+                  selector:
+                    matchLabels:
+                      app.kubernetes.io/component: metrics
+                      app.kubernetes.io/part-of: authorino
+                      control-plane: controller-manager
+                  endpoints:
+                    - port: http
+                      path: /metrics
+                      scheme: http
+                    - port: http
+                      path: /server-metrics
+                      scheme: http
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: rhoai-gateway-envoy-metrics
+  namespace: rhoai-prerequisites
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: rhoai-inference-only
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: rhoai-gateway-envoy-metrics

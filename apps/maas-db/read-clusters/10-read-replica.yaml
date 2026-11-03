@@ -42,3 +42,6 @@ spec:
     limits:
       cpu: "2"
       memory: 4Gi
+  # PodMonitor for user-workload monitoring: replication lag, connections, transactions, WAL (cnpg_*).
+  monitoring:
+    enablePodMonitor: true
