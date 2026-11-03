@@ -37,6 +37,21 @@ operator:
             value: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1
           - name: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE
             value: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1
+          # Keep the advertised runtime version honest with the pinned image.
+          # These feed opendatahub.io/runtime-version on the rendered
+          # LLMInferenceServiceConfig; left alone they would claim the nightly's
+          # 0.31.0+rhaiv.2.cpu while serving a 0.24.0 runtime. Read from the
+          # image itself: `python3 -c "import vllm; print(vllm.__version__)"`
+          # reports 0.24.0+rhaiv.15; the .cpu suffix follows the operator's own
+          # naming for these keys. NOTE the gap -- the 3.6 nightly expects vLLM
+          # 0.31, so a template that passes newer vLLM flags will fail on this
+          # image. Drop the whole rhaii block once the nightly's digests publish.
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE_UPSTREAM_VERSION
+            value: 0.24.0+rhaiv.15.cpu
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_1_IMAGE_UPSTREAM_VERSION
+            value: 0.24.0+rhaiv.15.cpu
+          - name: RELATED_IMAGE_RHAII_VLLM_CPU_FAST_2_IMAGE_UPSTREAM_VERSION
+            value: 0.24.0+rhaiv.15.cpu
 dependencies:
   opentelemetry:
     olm:
