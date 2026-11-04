@@ -14,8 +14,8 @@ spec:
     preserveResourcesOnDeletion: true
   generators:
     - git:
-        repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-        revision: HEAD
+        repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+        revision: jeyounghub1
         files:
           - path: apps/*/application.yaml
           # The usage-log store belongs to the dedicated-hub profile. A standard hub
