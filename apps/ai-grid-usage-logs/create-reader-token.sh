@@ -127,7 +127,8 @@ esac
 # Declarative, so it cannot collide with Argo CD creating the same namespace
 # between a check and a create on a fresh hub.
 kubectl "${kubectl_args[@]}" create namespace "$namespace" --dry-run=client -o yaml |
-  kubectl "${kubectl_args[@]}" apply -f - -
+  kubectl "${kubectl_args[@]}" apply -f -
+
 token_b64="$(printf '%s' "$token" | base64 -w0)"
 endpoint_b64="$(printf '%s' "$endpoint" | base64 -w0)"
 
