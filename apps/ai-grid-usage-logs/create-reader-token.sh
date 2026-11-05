@@ -95,7 +95,7 @@ case "$token" in
 esac
 
 # The query endpoint is the store Route's host plus the tenant root, the same
-derivation the Policy's hub template used when the chart still rendered it.
+# derivation the Policy's hub template used when the chart still rendered it.
 # The Loki operator creates the Route from apps/ai-grid-o11y's LokiStack, so it
 # exists without this app rendering a store -- but not until that app has
 # synced and the operator has reconciled, hence the check with a reason.
