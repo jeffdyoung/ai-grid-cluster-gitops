@@ -95,7 +95,7 @@ case "$token" in
 esac
 
 # The query endpoint is the store Route's host plus the tenant root, the same
-derivation the Policy's hub template used when the chart still rendered it.
+# derivation the Policy's hub template used when the chart still rendered it.
 # The Loki operator creates the Route from apps/ai-grid-o11y's LokiStack, so it
 # exists without this app rendering a store -- but not until that app has
 # synced and the operator has reconciled, hence the check with a reason.
@@ -127,7 +127,8 @@ esac
 # Declarative, so it cannot collide with Argo CD creating the same namespace
 # between a check and a create on a fresh hub.
 kubectl "${kubectl_args[@]}" create namespace "$namespace" --dry-run=client -o yaml |
-  kubectl "${kubectl_args[@]}" apply -f - -
+  kubectl "${kubectl_args[@]}" apply -f -
+
 token_b64="$(printf '%s' "$token" | base64 -w0)"
 endpoint_b64="$(printf '%s' "$endpoint" | base64 -w0)"
 
