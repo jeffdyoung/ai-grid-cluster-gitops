@@ -19,8 +19,8 @@ spec:
   generators:
     # ACM and argo-registration must start before a cluster Secret exists.
     - git:
-        repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-        revision: HEAD
+        repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+        revision: jeyounghub1
         files:
           - path: apps/acm/application.yaml
           - path: apps/acm-models/application.yaml
@@ -58,11 +58,11 @@ spec:
             spec:
               project: default
               sources:
-                - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-                  targetRevision: HEAD
+                - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+                  targetRevision: jeyounghub1
                   ref: values
-                - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-                  targetRevision: HEAD
+                - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+                  targetRevision: jeyounghub1
                   path: charts/ai-grid-o11y
                   helm:
                     valueFiles:
@@ -90,8 +90,8 @@ spec:
     - matrix:
         generators:
           - git:
-              repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-              revision: HEAD
+              repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+              revision: jeyounghub1
               files:
                 - path: apps/odf/application.yaml
           - clusters:

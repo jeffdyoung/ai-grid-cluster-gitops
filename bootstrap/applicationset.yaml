@@ -14,8 +14,8 @@ spec:
     preserveResourcesOnDeletion: true
   generators:
     - git:
-        repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-        revision: HEAD
+        repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+        revision: jeyounghub1
         files:
           - path: apps/*/application.yaml
           # The usage-log store belongs to the dedicated-hub profile. A standard hub
@@ -40,8 +40,8 @@ spec:
     - matrix:
         generators:
           - git:
-              repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-              revision: HEAD
+              repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+              revision: jeyounghub1
               files:
                 - path: apps/odf/application.yaml
           - clusters:
@@ -63,11 +63,11 @@ spec:
             spec:
               project: default
               sources:
-                - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-                  targetRevision: HEAD
+                - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+                  targetRevision: jeyounghub1
                   ref: values
-                - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-                  targetRevision: HEAD
+                - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+                  targetRevision: jeyounghub1
                   path: charts/ai-grid-o11y
                   helm:
                     valueFiles:

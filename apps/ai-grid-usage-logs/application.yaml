@@ -15,15 +15,15 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-      targetRevision: HEAD
+    - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+      targetRevision: jeyounghub1
       ref: values
 
     # The Loki operator. Not in the chart: the subchart renders the LokiStack,
     # while the operator is the parent chart's dependencies.loki, and a
     # dedicated hub runs no RHOAI to bring it.
-    - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-      targetRevision: HEAD
+    - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+      targetRevision: jeyounghub1
       path: apps/ai-grid-usage-logs/manifests
 
     # The subchart, not the parent: with skipCrdCheck the parent also renders a
