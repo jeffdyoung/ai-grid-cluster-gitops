@@ -36,8 +36,8 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-        targetRevision: HEAD
+        repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+        targetRevision: jeyounghub1
         path: apps/acm-models/smollm2-135m-instruct
       destination:
         server: '{{ if eq (index .metadata.labels "local-cluster") "true" }}https://kubernetes.default.svc{{ else }}{{ .server }}{{ end }}'

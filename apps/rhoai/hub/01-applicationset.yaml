@@ -47,8 +47,8 @@ spec:
     spec:
       project: default
       sources:
-        - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-          targetRevision: HEAD
+        - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+          targetRevision: jeyounghub1
           ref: values
         # Immutable OCI snapshot from the 3.6.0 dev channel.
         - repoURL: oci://ghcr.io/opendatahub-io/odh-gitops/rhai-on-openshift-chart
@@ -113,8 +113,8 @@ spec:
                         cidr: {{ printf "invalid ai-grid/machine-network label %s" . | quote }}
                         {{- end }}
                     {{- end }}
-        - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-          targetRevision: HEAD
+        - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+          targetRevision: jeyounghub1
           path: apps/rhoai/gateway-hostname
           helm:
             releaseName: rhoai-gateway-hostname
@@ -128,8 +128,8 @@ spec:
               - name: role
                 value: '{{ index .metadata.labels "ai-grid/role" }}'
                 forceString: true
-        - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-          targetRevision: HEAD
+        - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+          targetRevision: jeyounghub1
           path: apps/rhoai/catalog
           helm:
             releaseName: rhoai-nightly-catalog
