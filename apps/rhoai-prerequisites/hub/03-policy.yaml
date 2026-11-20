@@ -294,7 +294,13 @@ spec:
             {{- $infra := lookup "config.openshift.io/v1" "Infrastructure" "" "cluster" -}}
             {{- $hcp := eq (dig "status" "controlPlaneTopology" "" ($infra | default dict)) "External" -}}
             # HCP: unnamed templates are evaluated in inform mode by ACM.
-            # Require the mappings without writing a service-managed resource.
+            # Require the mapping without writing a service-managed resource.
+            # Only rhoai is required here. The rhaii* mirrors point at a staging
+            # registry and are opt-in, and on HCP each mapping is a separate
+            # `rosa create image-mirror` with no mirrorSourcePolicy control -- so
+            # mirroring registry.redhat.io/rhaii redirects the published RHAIIS
+            # digest to stage and breaks the pull. Requiring them would leave
+            # every HCP cluster that did not adopt stage permanently NonCompliant.
             - complianceType: musthave
               objectDefinition:
                 apiVersion: config.openshift.io/v1
@@ -311,24 +317,20 @@ spec:
                       {{ if not $hcp }}
                       mirrorSourcePolicy: NeverContactSource
                       {{ end }}
+                    {{- if not $hcp }}
                     - source: registry.redhat.io/rhaii
                       mirrors:
                         - registry.stage.redhat.io/rhaii
-                      {{ if not $hcp }}
                       mirrorSourcePolicy: NeverContactSource
-                      {{ end }}
                     - source: registry.redhat.io/rhaii-early-access
                       mirrors:
                         - registry.stage.redhat.io/rhaii-early-access
-                      {{ if not $hcp }}
                       mirrorSourcePolicy: NeverContactSource
-                      {{ end }}
                     - source: registry.redhat.io/rhaii-fast
                       mirrors:
                         - registry.stage.redhat.io/rhaii-fast
-                      {{ if not $hcp }}
                       mirrorSourcePolicy: NeverContactSource
-                      {{ end }}
+                    {{- end }}
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy

@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-      targetRevision: HEAD
+    - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+      targetRevision: jeyounghub1
       ref: values
     - repoURL: https://github.com/opendatahub-io/odh-gitops.git
       targetRevision: main
@@ -16,8 +16,8 @@ spec:
         releaseName: grid-bootstrap
         valueFiles:
           - $values/apps/grid-bootstrap/values.yaml
-    - repoURL: https://github.com/ai-grid-cloud/ai-grid-cluster-gitops.git
-      targetRevision: HEAD
+    - repoURL: https://github.com/jeffdyoung/ai-grid-cluster-gitops.git
+      targetRevision: jeyounghub1
       path: apps/grid-bootstrap/policies
   destination:
     server: https://kubernetes.default.svc
