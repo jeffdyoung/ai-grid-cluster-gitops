@@ -65,7 +65,7 @@ obj = hcp[0]['objectDefinition']
 assert obj['apiVersion'] == 'config.openshift.io/v1'
 assert obj['kind'] == 'ImageDigestMirrorSet'
 assert not obj.get('metadata', {}).get('name'), 'Named templates would enforce guest writes'
-assert obj['spec']['imageDigestMirrors'] == mappings[:1], 'HCP requires only the rhoai mapping'
-print('PASS: HCP uses an unnamed inform-only template requiring only the rhoai mapping')
+assert obj['spec']['imageDigestMirrors'] == mappings, 'Require all four service-managed mappings'
+print('PASS: HCP uses an unnamed inform-only template requiring all four mappings')
 print('PASS: existing pruning setting retained; HCP service name and source-fallback policy are not required')
 print('Local rendering only; ACM compliance and service-managed rollout need live validation.')
