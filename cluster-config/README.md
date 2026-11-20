@@ -51,6 +51,26 @@ The `acm-submariner` ApplicationSet deploys the add-on and configuration on
 every managed cluster. On ROSA, the gateways use a load-balancer Service
 instead of node ports.
 
+This policy is not the only thing that labels gateway Nodes, and the two do not
+agree. The ACM add-on labels as many Nodes as `gatewayConfig.gateways` asks for
+and reports `SubmarinerGatewaysLabeled`; this policy labels *every* pure worker.
+On a cluster with more workers than gateways both run and the policy's result is
+the wider one, which is harmless — Submariner still elects `gateways` of them —
+but it means the label count is not evidence of how the Nodes came to be
+labeled. Measured on a ROSA fleet where the `cluster-config` Application is not
+deployed, the add-on alone labeled two Nodes per cluster and the condition read
+True, so the add-on does not depend on this policy. Do not describe hand
+labeling as a prerequisite anywhere; see
+[cluster onboarding](../docs/acm/cluster-onboarding/README.md).
+
+`SubmarinerConfig.spec.credentialsSecret` is not set by
+`apps/acm/submariner`. That is the credential ACM's cloud-prepare step would use
+to do gateway cloud setup itself, security-group rules for the Submariner UDP
+ports among them, so on this fleet that step never runs. Gateway labeling and
+the load-balancer Service do not need it, and on ROSA the service-managed VPC
+and security groups make it unclear whether cloud-prepare could work at all — it
+has not been tried. Do not cite ACM as the thing opening the ports.
+
 ### Adding or removing an admin
 
 Edit `cluster-admins.yaml` and commit. The hub's generated Application syncs
