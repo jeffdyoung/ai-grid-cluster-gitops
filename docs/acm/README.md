@@ -12,7 +12,9 @@ What you bring:
   model images, given once to the bootstrap script as environment variables.
 - Each site: a default StorageClass. RHOAI monitoring claims 20Gi and 10Gi. A MaaS
   database replica claims 20Gi on an ingress or combined site.
-- Each site: two nodes Submariner can use as gateways, and its cloud prerequisites.
+- Each site: at least two pure worker nodes Submariner can use as gateways. The
+  add-on labels them itself; you supply the capacity. On ROSA nothing else is
+  needed, because the gateways use a load-balancer Service.
 - Each site: a default router the other sites can reach, on 443.
 - Each site: capacity for its models. The samples run on CPU, 10Gi each. A GPU
   model needs GPU nodes and the NVIDIA operator, which this repository does not
