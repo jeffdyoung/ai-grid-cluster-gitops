@@ -1,7 +1,13 @@
 # This deployment's cluster admins. Overrides cluster_admins in values.yaml.
-#
-# Empty on purpose: cluster-admin on this hub comes from the ROSA-managed
-# `cluster-admins` Group (binding `osd-cluster-admin`), which Git does not
-# control. This list is for granting cluster-admin to someone who is NOT in that
-# group; add their Kubernetes username here when that is needed.
-cluster_admins: []
+cluster_admins:
+  - khowell
+  - aballant
+  - lphiri
+  - pdipilat
+  - juntwang
+  - chambrid
+  - sbatsche
+  - rjjohnso
+  - cchase
+  - kverlaen
+  - ckyrillo
