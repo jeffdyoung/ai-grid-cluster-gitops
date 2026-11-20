@@ -164,9 +164,17 @@ existing mirrors that are still required rather than creating duplicate sources.
 The `rhoai-image-mirror` ConfigurationPolicy renders an unnamed object template
 on External control planes. ACM evaluates unnamed templates in inform mode,
 even though this shared policy otherwise enforces prerequisites. It checks for
-one ImageDigestMirrorSet containing all four mappings, without creating or
+one ImageDigestMirrorSet containing the `rhoai` mapping, without creating or
 changing the service-owned resource or requiring its name to be `quay-registry`.
-Missing mappings remain NonCompliant. Mappings split across multiple IDMS
+A missing `rhoai` mapping remains NonCompliant.
+
+The `rhaii*` mappings are **not** required on External control planes. They
+point at a staging registry and are opt-in, and on HCP each mapping is its own
+`rosa create image-mirror` with no `mirrorSourcePolicy` control -- so mirroring
+`registry.redhat.io/rhaii` redirects the published RHAIIS digest to stage and
+breaks the pull for any deployment referencing published images. Requiring them
+would leave every HCP cluster that did not adopt the stage registry permanently
+NonCompliant, and on a shared policy that blocks every later sync wave. Mappings split across multiple IDMS
 objects are not covered by this check. Inspect the service's resulting objects:
 
 ```sh
