@@ -20,5 +20,6 @@ metadata:
     argocd.argoproj.io/sync-wave: "6"
 spec:
   loadBalancerEnable: {{ .Values.loadBalancerEnable }}
+  IPSecDebug: {{ .Values.ipSecDebug }}
   gatewayConfig:
     gateways: {{ .Values.gateways }}

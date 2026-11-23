@@ -3,6 +3,31 @@ clusterName: ""
 # -- Namespace where the Submariner operator is installed.
 installNamespace: submariner-operator
 # -- Use a load-balancer Service for the Submariner gateways.
-loadBalancerEnable: true
+#
+# DEVIATION FROM UPSTREAM: upstream sets this true (commit 084d02f). Do not
+# "fix" it back without reading this.
+#
+# This fleet's hub, spoke and spoke2 all run in ONE VPC subnet -- 10.0.64.0/20,
+# us-east-1a, all 14 nodes /20 behind 10.0.64.1, every cluster resolving the
+# same MAC for the others' node IPs. The gateways are ARP-adjacent, one hop
+# apart. Upstream's `true` is correct for clusters in separate networks, where
+# an HCP gateway has no public node IP and needs an LB address to advertise.
+# Here it does two harmful things:
+#   - it sets using-loadbalancer=true on every endpoint, which forces
+#     preferred-server=true, so every cluster is passive and nothing ever dials;
+#   - it sends gateway traffic out through a NAT gateway, across the internet
+#     and back in via the peer's NLB, to reach a neighbour on the same subnet.
+# Measured 2026-11-23 with it true: 0 of 6 cable directions up, 0 established
+# IPsec SAs fleet-wide, UDP 4490 passing directly while 4500 was answered only
+# via the NAT path. The CRD default is false.
+#
+# Revisit if a site is ever placed in a different VPC.
+loadBalancerEnable: false
 # -- Number of gateway replicas.
 gateways: 2
+# -- pluto/libreswan debug logging.
+#
+# TEMPORARY, for the cable diagnosis above: without it pluto logs nothing about
+# why a CHILD_SA fails, which leaves a rejected IKE packet indistinguishable
+# from one that never arrived. Set back to false once cables are stable.
+ipSecDebug: true
