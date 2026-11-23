@@ -25,9 +25,9 @@ installNamespace: submariner-operator
 loadBalancerEnable: false
 # -- Number of gateway replicas.
 gateways: 2
-# -- pluto/libreswan debug logging.
-#
-# TEMPORARY, for the cable diagnosis above: without it pluto logs nothing about
-# why a CHILD_SA fails, which leaves a rejected IKE packet indistinguishable
-# from one that never arrived. Set back to false once cables are stable.
-ipSecDebug: true
+# -- pluto/libreswan debug logging. Off by default; the gateway is chatty enough
+# without it. Turn it on only while diagnosing a cable, because pluto otherwise
+# logs nothing about why a CHILD_SA fails, which leaves a rejected IKE packet
+# indistinguishable from one that never arrived. Verified to reach the deployed
+# Submariner CR as ceIPSecDebug.
+ipSecDebug: false
