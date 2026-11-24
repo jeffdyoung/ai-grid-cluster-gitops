@@ -23,6 +23,42 @@ installNamespace: submariner-operator
 #
 # Revisit if a site is ever placed in a different VPC.
 loadBalancerEnable: false
+# -- NAT traversal. Controls which address a gateway falls back to when the
+# NAT-T discovery probe does not resolve.
+#
+# DEVIATION FROM THE CRD DEFAULT: the SubmarinerConfig CRD defaults this true.
+# We never set it, so until now every cluster ran with it true.
+#
+# Upstream Submariner documents our layout as "All Private and Routed": all
+# gateways reach each other by routing on their private IPs and no NAT is
+# needed. Discovery already prefers the private IP. This field only decides the
+# FALLBACK when a probe does not resolve -- true means the public IP, false
+# means the private IP.
+#
+# On ROSA all four clusters egress through ONE NAT gateway, so all four
+# Endpoints advertise the same public IP (35.169.150.110) on the same ports.
+# The docs permit a shared public IP only with a dedicated discovery and
+# encapsulation port per gateway, mapped on the NAT device. We can have
+# neither: ROSA does not expose the NAT gateway, and NATTDiscoveryPort is the
+# one SubmarinerConfig field confirmed to be accepted and then silently
+# dropped (set 4900, Endpoints still advertise 4490).
+#
+# So with it true, a probe that times out lands on an address that cannot
+# work, and because each side decides independently the result is a coin flip
+# per direction per negotiation. Measured 2026-11-24: 6 of 12 directions up.
+# Every working direction had BOTH sides on private; every broken pair had
+# exactly one side on the shared public IP, so the two ends built their
+# connection against different addresses and could never match. The same
+# config had been 12 of 12 the day before -- the difference was the overnight
+# renegotiation, not a config change.
+#
+# Setting it false makes an unresolved probe degrade to the right answer for a
+# one-VPC fleet. Discovery still runs, private is still preferred, and the
+# Endpoint still advertises its public IP -- only the fallback moves.
+#
+# Revisit if a site is ever placed in a different VPC, where the public IP is
+# the only path and this must go back to true.
+nattEnable: false
 # -- Number of gateway replicas.
 gateways: 2
 # -- pluto/libreswan debug logging. Off by default; the gateway is chatty enough
