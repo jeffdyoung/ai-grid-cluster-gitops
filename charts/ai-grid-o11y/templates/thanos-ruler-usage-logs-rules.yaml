@@ -1,0 +1,108 @@
+# Alerts on usage-record loss, evaluated by ACM's Thanos Ruler on the hub.
+#
+# ACM reads custom rules from a ConfigMap named exactly thanos-ruler-custom-rules in
+# open-cluster-management-observability, under the key custom_rules.yaml, and the ruler's
+# config-reload sidecar picks up changes without a restart. Verified 2026-11-24: no such ConfigMap
+# existed and no PrometheusRule of any kind was present, so nothing alerted on usage-log loss.
+#
+# POST-APPLY CHECK, because a wrong name here fails silently -- which is the exact failure class
+# this file exists to catch. The ruler StatefulSet does not mount this ConfigMap until it exists;
+# the mount appearing is the proof the operator accepted it:
+#   oc -n open-cluster-management-observability get sts observability-thanos-rule \
+#     -o jsonpath='{.spec.template.spec.volumes[*].name}' | tr ' ' '\n' | grep custom
+#   # expect: thanos-ruler-custom-rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thanos-ruler-custom-rules
+  namespace: open-cluster-management-observability
+data:
+  custom_rules.yaml: |
+    groups:
+      - name: ai-grid-usage-logs
+        rules:
+          # Records the collector accepted and then destroyed. The sender saw HTTP 200 for every
+          # one of them, so this counter is the only evidence they existed. Treat as data loss.
+          - alert: AIGridUsageRecordsDropped
+            expr: sum by (cluster) (increase(otelcol_exporter_send_failed_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Usage records were accepted and then dropped
+              description: >-
+                The usage-log collector returned success to the gateway for records it then failed
+                to deliver to the hub store. Causes: the hub unreachable for longer than the
+                exporter's retry budget, or a permanent rejection from Loki such as a timestamp
+                older than reject_old_samples_max_age. See AIGRID/troubleshooting.md.
+
+          # The queue refused work. Distinct from the above: these never entered the queue at all.
+          - alert: AIGridUsageRecordsEnqueueFailed
+            expr: sum by (cluster) (increase(otelcol_exporter_enqueue_failed_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Usage records rejected before reaching the export queue
+              description: >-
+                The sending queue is full or closed. The queue is in memory only and its default
+                capacity is 1000 items, so a hub outage fills it quickly.
+
+          # memory_limiter pushing back. The receiver refuses, which surfaces to Envoy, which has
+          # no retry and drops.
+          - alert: AIGridUsageCollectorRefusingRecords
+            expr: sum by (cluster) (increase(otelcol_receiver_refused_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: Usage-log collector is refusing incoming records
+              description: >-
+                Usually memory_limiter at its 200 MiB ceiling against a 256Mi container limit.
+                Envoy's access-log sink has no retry, so refused records are lost at the gateway.
+
+          # Early warning: the queue is draining slower than it fills, before anything is lost.
+          - alert: AIGridUsageExportQueueFilling
+            expr: |
+              max by (cluster, ai_grid_collector_pod) (
+                otelcol_exporter_queue_size{job="ai-grid-usage-logs"}
+                / otelcol_exporter_queue_capacity{job="ai-grid-usage-logs"}
+              ) > 0.5
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Usage-log export queue over half full
+              description: >-
+                Records are arriving faster than they are being delivered to the hub. The queue is
+                not persisted, so anything still in it is lost if the pod restarts.
+
+          # Reconciliation: records going in, nothing coming out. Catches a stalled exporter that
+          # is not yet failing, which no single counter reveals.
+          - alert: AIGridUsageRecordsNotReachingHub
+            expr: |
+              (sum by (cluster) (increase(otelcol_receiver_accepted_log_records{job="ai-grid-usage-logs"}[15m])) > 0)
+              and
+              (sum by (cluster) (increase(otelcol_exporter_sent_log_records{job="ai-grid-usage-logs"}[15m])) == 0)
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: Usage records are being received but none are reaching the hub
+              description: >-
+                The collector is accepting records from the gateway and delivering none onward.
+
+          # The watchdog. If this fires, every alert above has gone blind and absence of alerts
+          # means nothing. Global rather than per cluster: absent() cannot be grouped, so this
+          # catches the whole scrape path failing, not one site losing it.
+          - alert: AIGridUsageLogTelemetryAbsent
+            expr: absent(otelcol_process_uptime{job="ai-grid-usage-logs"})
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: No usage-log collector telemetry is reaching Thanos
+              description: >-
+                The ai-grid-usage-logs scrape job is returning nothing from any cluster, so
+                usage-record loss is once again undetectable. Check that MCOA still distributes the
+                ScrapeConfig and that the collector's :8888 is reachable.
