@@ -8,6 +8,12 @@
 # hub's Thanos. Confirmed working for the rhai-metrics job (~5.7k series per spoke) with NO entry
 # in observability-metrics-custom-allowlist, which does not exist on this fleet.
 #
+# This file alone does NOT get the job distributed. MCOA copies only the ScrapeConfigs named in
+# ClusterManagementAddOn installStrategy.placements[global].configs, which
+# apps/rhoai-prerequisites/hub/13-rhai-metrics-addon-policy.yaml maintains. The labels below match
+# rhai-metrics but are not the selection mechanism -- measured 2026-11-24, this job sat unreferenced
+# on the hub until it was named in that policy. Change both files together.
+#
 # Unlike scrapeconfig.yaml this is scheme HTTP, not HTTPS: the collector's service.telemetry block
 # configures a bare prometheus reader on 0.0.0.0:8888 with no TLS. Its NetworkPolicy
 # (data-science-usage-logs-collector-allow) admits :8888 from anywhere -- the rule with no `from`
