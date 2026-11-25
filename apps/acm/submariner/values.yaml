@@ -3,6 +3,67 @@ clusterName: ""
 # -- Namespace where the Submariner operator is installed.
 installNamespace: submariner-operator
 # -- Use a load-balancer Service for the Submariner gateways.
-loadBalancerEnable: true
+#
+# DEVIATION FROM UPSTREAM: upstream sets this true (commit 084d02f). Do not
+# "fix" it back without reading this.
+#
+# This fleet's hub, spoke and spoke2 all run in ONE VPC subnet -- 10.0.64.0/20,
+# us-east-1a, all 14 nodes /20 behind 10.0.64.1, every cluster resolving the
+# same MAC for the others' node IPs. The gateways are ARP-adjacent, one hop
+# apart. Upstream's `true` is correct for clusters in separate networks, where
+# an HCP gateway has no public node IP and needs an LB address to advertise.
+# Here it does two harmful things:
+#   - it sets using-loadbalancer=true on every endpoint, which forces
+#     preferred-server=true, so every cluster is passive and nothing ever dials;
+#   - it sends gateway traffic out through a NAT gateway, across the internet
+#     and back in via the peer's NLB, to reach a neighbour on the same subnet.
+# Measured 2026-11-23 with it true: 0 of 6 cable directions up, 0 established
+# IPsec SAs fleet-wide, UDP 4490 passing directly while 4500 was answered only
+# via the NAT path. The CRD default is false.
+#
+# Revisit if a site is ever placed in a different VPC.
+loadBalancerEnable: false
+# -- NAT traversal. Controls which address a gateway falls back to when the
+# NAT-T discovery probe does not resolve.
+#
+# DEVIATION FROM THE CRD DEFAULT: the SubmarinerConfig CRD defaults this true.
+# We never set it, so until now every cluster ran with it true.
+#
+# Upstream Submariner documents our layout as "All Private and Routed": all
+# gateways reach each other by routing on their private IPs and no NAT is
+# needed. Discovery already prefers the private IP. This field only decides the
+# FALLBACK when a probe does not resolve -- true means the public IP, false
+# means the private IP.
+#
+# On ROSA all four clusters egress through ONE NAT gateway, so all four
+# Endpoints advertise the same public IP (35.169.150.110) on the same ports.
+# The docs permit a shared public IP only with a dedicated discovery and
+# encapsulation port per gateway, mapped on the NAT device. We can have
+# neither: ROSA does not expose the NAT gateway, and NATTDiscoveryPort is the
+# one SubmarinerConfig field confirmed to be accepted and then silently
+# dropped (set 4900, Endpoints still advertise 4490).
+#
+# So with it true, a probe that times out lands on an address that cannot
+# work, and because each side decides independently the result is a coin flip
+# per direction per negotiation. Measured 2026-11-24: 6 of 12 directions up.
+# Every working direction had BOTH sides on private; every broken pair had
+# exactly one side on the shared public IP, so the two ends built their
+# connection against different addresses and could never match. The same
+# config had been 12 of 12 the day before -- the difference was the overnight
+# renegotiation, not a config change.
+#
+# Setting it false makes an unresolved probe degrade to the right answer for a
+# one-VPC fleet. Discovery still runs, private is still preferred, and the
+# Endpoint still advertises its public IP -- only the fallback moves.
+#
+# Revisit if a site is ever placed in a different VPC, where the public IP is
+# the only path and this must go back to true.
+nattEnable: false
 # -- Number of gateway replicas.
 gateways: 2
+# -- pluto/libreswan debug logging. Off by default; the gateway is chatty enough
+# without it. Turn it on only while diagnosing a cable, because pluto otherwise
+# logs nothing about why a CHILD_SA fails, which leaves a rejected IKE packet
+# indistinguishable from one that never arrived. Verified to reach the deployed
+# Submariner CR as ceIPSecDebug.
+ipSecDebug: false

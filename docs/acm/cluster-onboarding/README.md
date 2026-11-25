@@ -159,9 +159,20 @@ as an override when present.
   traces on every site. An ingress or combined site claims 20Gi for its MaaS
   database replica. The sample models pull weights at start and claim nothing.
 - Submariner gateway nodes. Every managed cluster gets the add-on with two
-  gateways and Globalnet. Label two workers `submariner.io/gateway=true` on each
-  cluster, the hub included, because the add-on has no cloud credentials to do it. Over it the site reaches the hub's enrollment service
-  and the MaaS database primary.
+  gateways and Globalnet. Provide at least two pure worker Nodes on each cluster,
+  the hub included. This is a capacity requirement, not a label to apply: the
+  add-on labels the Nodes `submariner.io/gateway=true` itself, as many as
+  `gatewayConfig.gateways` asks for. Confirm it rather than assuming it, because
+  nothing else reports a shortfall:
+
+  ```bash
+  oc -n <cluster> get submarinerconfig submariner \
+    -o jsonpath='{range .status.conditions[?(@.type=="SubmarinerGatewaysLabeled")]}{.status} {.message}{end}'
+  ```
+
+  Label two workers by hand only if that reads False once the add-on is
+  installed. Over Submariner the site reaches the hub's enrollment service and
+  the MaaS database primary.
 - A default router the other sites can reach. Peers dial the provider gateway
   through it on 443 with TLS passthrough.
 - DNS that returns valid AAAA records for the router's wildcard names, or

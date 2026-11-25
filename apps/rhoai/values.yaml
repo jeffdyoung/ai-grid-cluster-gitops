@@ -18,6 +18,13 @@ operator:
       channel: stable-3.6
       # ACM owns this Red Hat managed Namespace; OSD rejects Argo writes to it.
       createNamespace: false
+      # No RELATED_IMAGE_RHAII_* overrides. The operator's own digests resolve
+      # through the registry.redhat.io/rhaii -> registry.stage.redhat.io/rhaii
+      # mirror, so the serving runtime matches the operator (vLLM 0.31 for a 3.6
+      # nightly) instead of the older published 3.5.2 image. That mirror and a
+      # registry.stage.redhat.io credential are prerequisites -- without them the
+      # operator's digest answers `manifest unknown` on the CDN and a serving pod
+      # sits in ImagePullBackOff. See the install guide's step 1.
 dependencies:
   opentelemetry:
     olm:

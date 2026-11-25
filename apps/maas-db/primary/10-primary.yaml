@@ -17,6 +17,30 @@ spec:
     initdb:
       database: maas
       owner: maas_api
+  # WAL retention for the remote read replicas. These two values are the entire catch-up budget
+  # for a detached site: there is NO WAL archive on this cluster (spec.backup is unset, and the
+  # namespace has no bucket or object-store credential), so a replica that falls behind can only
+  # recover from WAL the primary still holds. Beyond that it loops on
+  # "requested WAL segment ... has already been removed" and needs a full rebuild -- which cost us
+  # a manual rebuild per detached site on 2026-11-23 and 2026-11-24.
+  #
+  # Do not read pg_stat_archiver as evidence of an archive. CNPG sets archive_mode=on and
+  # archive_command=/controller/manager wal-archive on every Cluster, and with no destination that
+  # command exits 0 without storing, so archived_count climbs and ContinuousArchiving reports True
+  # for segments that were discarded. Measured 2026-11-25: 1130 "archived", nothing stored.
+  postgresql:
+    parameters:
+      # Was CNPG's 5min default, which forced a segment switch every 5 minutes on a near-idle
+      # database: 1130 segments in 5.8 days, ~194/day, ~3.1 GB/day, almost none of it real write
+      # volume. With no archive to bound an RPO against, that churn bought nothing and burned the
+      # retention below. Lower this back towards 5min if an archive is ever configured, because it
+      # then sets the idle-period RPO.
+      archive_timeout: 1h
+      # Was CNPG's 512MB default = 32 segments at 16 MiB = about FOUR HOURS of catch-up at the
+      # churn above. The PVC is 20Gi with 19Gi free and the database itself uses under 1Gi, so
+      # 8GB of WAL is affordable and still leaves headroom. pg_wal grows to roughly this size in
+      # steady state; expect days of window, not hours, with archive_timeout also raised.
+      wal_keep_size: 8GB
   storage:
     size: 20Gi
   resources:

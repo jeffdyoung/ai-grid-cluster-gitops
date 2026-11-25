@@ -29,11 +29,24 @@ Beyond the [dependencies](../README.md#dependencies):
 - **A load balancer for the gateways the site's role needs** (the MaaS
   gateway on an ingress or combined site, the serving gateway where models
   run): an existing one is fine; a site without one declares an L2 range and
-  gets MetalLB (below). Submariner's gateways default to a LoadBalancer Service
-  (`loadBalancerEnable: true` in `apps/acm/submariner/values.yaml`); a
-  deployment without one sets it to `false` in that file, in its fork, before
-  the hub's first sync, and the gateway nodes must then be reachable from the
-  other sites on their own addresses and Submariner's tunnel ports.
+  gets MetalLB (below).
+
+  **Check `apps/acm/submariner/values.yaml` before the hub's first sync.** This
+  fork sets `loadBalancerEnable: false` and `nattEnable: false`, both tuned for
+  a single-VPC ROSA fleet whose gateways route to each other on private node
+  addresses. A bare-metal deployment whose sites sit in *separate* networks
+  needs the opposite of each: `loadBalancerEnable: true` so an HCP gateway has
+  a load-balancer address to advertise, and `nattEnable: true` so a gateway
+  falls back to the peer's public address rather than a private one it cannot
+  reach. Read the comments in that file — each records what was measured here
+  and when to reverse it.
+
+  With both `false`, the gateway nodes must be reachable from the other sites
+  on their own addresses and Submariner's tunnel ports. One caveat if sites
+  share an egress address: upstream supports several clusters behind one public
+  IP only with a dedicated discovery and encapsulation port per gateway, mapped
+  on the NAT device, and `NATTDiscoveryPort` in `SubmarinerConfig` is accepted
+  and then silently dropped — so plan on distinct egress addresses per site.
 - **Block storage** with a default StorageClass (LVM Storage or equivalent)
   for RHOAI monitoring, the MaaS database replica, Prometheus and the usage
   logs; **object storage** with an ObjectBucketClaim class (NooBaa) on the
