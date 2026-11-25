@@ -11,6 +11,20 @@
 #   oc -n open-cluster-management-observability get sts observability-thanos-rule \
 #     -o jsonpath='{.spec.template.spec.volumes[*].name}' | tr ' ' '\n' | grep custom
 #   # expect: thanos-ruler-custom-rules
+#
+# EVERY EXPRESSION SELECTS ON ai_grid_collection_path, NOT ON job. A managed cluster's series reach
+# this ruler with no `job` label at all: the PrometheusAgent's remote_write carries
+#   - source_labels: [exported_job]        target_label: job        action: replace
+#   - source_labels: [exported_instance]   target_label: instance   action: replace
+#   - regex: exported_job|exported_instance                         action: labeldrop
+# and a replace from an absent source label writes the empty string, which deletes the target
+# label. ACM's own ScrapeConfigs scrape /federate, where the origin job survives as exported_job
+# and these rules restore it; a direct scrape has no exported_job, so job and instance are both
+# erased. Measured 2026-11-25: of 73 job values in the hub's Thanos, the only series matching
+# job="ai-grid-usage-logs" were this ruler's own ALERTS, and AIGridUsageLogTelemetryAbsent had
+# been firing continuously since these rules loaded. ai_grid_collection_path is set by the
+# ScrapeConfig in rhoai-prerequisites/hub/15-usage-logs-scrapeconfig-policy.yaml and survives the
+# write path intact, as does ai_grid_collector_pod.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +38,7 @@ data:
           # Records the collector accepted and then destroyed. The sender saw HTTP 200 for every
           # one of them, so this counter is the only evidence they existed. Treat as data loss.
           - alert: AIGridUsageRecordsDropped
-            expr: sum by (cluster) (increase(otelcol_exporter_send_failed_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            expr: sum by (cluster) (increase(otelcol_exporter_send_failed_log_records{ai_grid_collection_path="usage-logs-collector"}[15m])) > 0
             for: 5m
             labels:
               severity: critical
@@ -38,7 +52,7 @@ data:
 
           # The queue refused work. Distinct from the above: these never entered the queue at all.
           - alert: AIGridUsageRecordsEnqueueFailed
-            expr: sum by (cluster) (increase(otelcol_exporter_enqueue_failed_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            expr: sum by (cluster) (increase(otelcol_exporter_enqueue_failed_log_records{ai_grid_collection_path="usage-logs-collector"}[15m])) > 0
             for: 5m
             labels:
               severity: critical
@@ -51,7 +65,7 @@ data:
           # memory_limiter pushing back. The receiver refuses, which surfaces to Envoy, which has
           # no retry and drops.
           - alert: AIGridUsageCollectorRefusingRecords
-            expr: sum by (cluster) (increase(otelcol_receiver_refused_log_records{job="ai-grid-usage-logs"}[15m])) > 0
+            expr: sum by (cluster) (increase(otelcol_receiver_refused_log_records{ai_grid_collection_path="usage-logs-collector"}[15m])) > 0
             for: 5m
             labels:
               severity: warning
@@ -65,8 +79,8 @@ data:
           - alert: AIGridUsageExportQueueFilling
             expr: |
               max by (cluster, ai_grid_collector_pod) (
-                otelcol_exporter_queue_size{job="ai-grid-usage-logs"}
-                / otelcol_exporter_queue_capacity{job="ai-grid-usage-logs"}
+                otelcol_exporter_queue_size{ai_grid_collection_path="usage-logs-collector"}
+                / otelcol_exporter_queue_capacity{ai_grid_collection_path="usage-logs-collector"}
               ) > 0.5
             for: 10m
             labels:
@@ -81,9 +95,9 @@ data:
           # is not yet failing, which no single counter reveals.
           - alert: AIGridUsageRecordsNotReachingHub
             expr: |
-              (sum by (cluster) (increase(otelcol_receiver_accepted_log_records{job="ai-grid-usage-logs"}[15m])) > 0)
+              (sum by (cluster) (increase(otelcol_receiver_accepted_log_records{ai_grid_collection_path="usage-logs-collector"}[15m])) > 0)
               and
-              (sum by (cluster) (increase(otelcol_exporter_sent_log_records{job="ai-grid-usage-logs"}[15m])) == 0)
+              (sum by (cluster) (increase(otelcol_exporter_sent_log_records{ai_grid_collection_path="usage-logs-collector"}[15m])) == 0)
             for: 10m
             labels:
               severity: critical
@@ -96,7 +110,7 @@ data:
           # means nothing. Global rather than per cluster: absent() cannot be grouped, so this
           # catches the whole scrape path failing, not one site losing it.
           - alert: AIGridUsageLogTelemetryAbsent
-            expr: absent(otelcol_process_uptime{job="ai-grid-usage-logs"})
+            expr: absent(otelcol_process_uptime{ai_grid_collection_path="usage-logs-collector"})
             for: 30m
             labels:
               severity: warning
@@ -104,5 +118,7 @@ data:
               summary: No usage-log collector telemetry is reaching Thanos
               description: >-
                 The ai-grid-usage-logs scrape job is returning nothing from any cluster, so
-                usage-record loss is once again undetectable. Check that MCOA still distributes the
-                ScrapeConfig and that the collector's :8888 is reachable.
+                usage-record loss is once again undetectable. Check that policy
+                ai-grid-usage-logs-scrape is compliant on every site, that the ScrapeConfig it
+                delivers still carries the user-workload-metrics-collector label the spoke's
+                PrometheusAgent selects on, and that the collector's :8888 is reachable.

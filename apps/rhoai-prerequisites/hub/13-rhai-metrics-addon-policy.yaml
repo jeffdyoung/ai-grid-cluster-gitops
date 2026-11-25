@@ -1,13 +1,18 @@
 # Register the ScrapeConfigs this fleet adds to ACM's observability addon, without taking ownership
-# of the addon's other configs: the existing RHOAI exporter job, the GPU metric the AI Grid
+# of the addon's other configs: the existing RHOAI exporter job, and the GPU metric the AI Grid
 # dashboards need beyond ACM's default list
-# (charts/ai-grid-o11y/templates/scrapeconfig-dashboard-platform-metrics.yaml), and the usage-log
-# collector's telemetry.
+# (charts/ai-grid-o11y/templates/scrapeconfig-dashboard-platform-metrics.yaml).
 #
 # This list -- not the ScrapeConfig's labels -- is what makes MCOA distribute a job. Verified
 # 2026-11-24: a ScrapeConfig created with labels byte-identical to rhai-metrics was never copied
 # into any spoke's addon-multicluster-observability-addon-deploy-0 ManifestWork, and the addon's
 # status.configReferences never listed it, until it was named here. A new job needs BOTH files.
+#
+# Registering a job here also opts it into MCOA's rewrite of the copy it distributes: scheme HTTP
+# becomes HTTPS, and a scrapeClass and a static user-workload-monitoring target are appended. Both
+# jobs below survive that because their targets serve service-CA TLS. A plain-HTTP target cannot
+# use this path at all -- see 15-usage-logs-scrapeconfig-policy.yaml, which delivers the usage-log
+# collector's telemetry job straight to the spokes instead.
 # It also sets installStrategy.type Placements and references the observability operator's
 # AddOnDeploymentConfig, so the addon is installable when this Policy creates it first.
 # Removing this musthave policy does not withdraw the tuple; deregistration is a separate migration.
@@ -73,13 +78,6 @@ spec:
                             resource: scrapeconfigs
                             namespace: open-cluster-management-observability
                             name: ai-grid-dashboard-platform-metrics
-                          # The usage-log collector's own telemetry
-                          # (charts/ai-grid-o11y/templates/scrapeconfig-usage-logs-collector.yaml),
-                          # which is the only record of a dropped usage record.
-                          - group: monitoring.rhobs
-                            resource: scrapeconfigs
-                            namespace: open-cluster-management-observability
-                            name: ai-grid-usage-logs
                           # The addon refuses to apply its manifests without an AddOnDeploymentConfig
                           # reference, and when this policy creates the addon it has no default one.
                           # The observability operator creates this config.
