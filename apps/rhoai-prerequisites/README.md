@@ -32,6 +32,17 @@ grid-bootstrap image from the same registry. Other managed clusters get nothing:
   and prevents automatic rollout, including Cluster Observability Operator
   installation on the hub. The additive `musthave` registration preserves ACM's
   default configuration references and other placement entries.
+- on enabled grid sites, the `ai-grid-usage-logs` ScrapeConfig in
+  `redhat-ods-monitoring`, which collects the usage-log collector's own
+  `otelcol_*` counters: the only record that a usage record was dropped. It is
+  delivered to each site rather than registered with the addon above, because
+  the addon rewrites `scheme: HTTP` to `HTTPS` on the copy it distributes and
+  the collector's telemetry reader on `:8888` serves no TLS. The spoke's
+  `user-workload-metrics-collector` PrometheusAgent selects it by the
+  `app.kubernetes.io/component` label across all namespaces, so no addon
+  registration is involved and the object is not rewritten. The alerts over
+  these counters live in `charts/ai-grid-o11y`; they select on
+  `ai_grid_collection_path`, not `job`, which ACM's remote-write erases.
 - temporary cert-manager permissions for the OpenTelemetry operator on enabled Grid sites
   with role `ingress`, `inference` or `combined`, including an enabled hub, and a one-time
   OTel restart once cert-manager and those permissions are usable.
